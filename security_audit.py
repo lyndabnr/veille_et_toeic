@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import json
+import html
 import argparse
 import smtplib
 import urllib.request
@@ -36,16 +37,22 @@ FEEDS = {
         "CERT-FR Avis": "https://www.cert.ssi.gouv.fr/avis/feed/",
         "CERT-FR Alertes": "https://www.cert.ssi.gouv.fr/alerte/feed/",
         "The Hacker News": "https://feeds.feedburner.com/TheHackersNews",
-        "BleepingComputer": "https://www.bleepingcomputer.com/feed/"
+        "BleepingComputer": "https://www.bleepingcomputer.com/feed/",
+        "Krebs on Security": "https://krebsonsecurity.com/feed/",
+        "Dark Reading": "https://www.darkreading.com/rss.xml"
     },
     "Artificial Intelligence": {
         "OpenAI News": "https://openai.com/news/rss.xml",
         "TechCrunch AI": "https://techcrunch.com/category/artificial-intelligence/feed/",
-        "Actu IA": "https://www.actuia.com/feed/"
+        "Actu IA": "https://www.actuia.com/feed/",
+        "Hugging Face": "https://huggingface.co/blog/feed.xml",
+        "Google Research": "https://research.google/blog/rss/"
     },
     "General IT": {
         "Le Monde Informatique": "https://www.lemondeinformatique.fr/flux-rss/thematique/toutes-les-actualites/rss.xml",
-        "ZDNet Actualités": "https://www.zdnet.fr/feeds/rss/actualites/"
+        "ZDNet Actualités": "https://www.zdnet.fr/feeds/rss/actualites/",
+        "Wired": "https://www.wired.com/feed/rss",
+        "Ars Technica": "https://feeds.arstechnica.com/arstechnica/index"
     }
 }
 
@@ -163,7 +170,7 @@ def send_telegram_alert(suspicious_ips, log_file, threshold):
 
     send_telegram_raw_message(token, chat_id, message)
 
-def send_telegram_raw_message(token, chat_id, message):
+def send_telegram_raw_message(token, chat_id, message, parse_mode="Markdown"):
     """Posts a text message to the Telegram bot API."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     
@@ -171,7 +178,7 @@ def send_telegram_raw_message(token, chat_id, message):
     data = urllib.parse.urlencode({
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "Markdown",
+        "parse_mode": parse_mode,
         "disable_web_page_preview": "true"
     }).encode("utf-8")
 
@@ -233,6 +240,7 @@ def regex_parse_rss(xml_str):
     title_pattern = re.compile(r"<title>(.*?)</title>", re.DOTALL | re.IGNORECASE)
     link_pattern = re.compile(r"<link>(.*?)</link>", re.DOTALL | re.IGNORECASE)
     pub_date_pattern = re.compile(r"<pubDate>(.*?)</pubDate>", re.DOTALL | re.IGNORECASE)
+    desc_pattern = re.compile(r"<description>(.*?)</description>", re.DOTALL | re.IGNORECASE)
     
     def clean_cdata(text):
         if "<![CDATA[" in text:
@@ -245,12 +253,14 @@ def regex_parse_rss(xml_str):
         title_m = title_pattern.search(item)
         link_m = link_pattern.search(item)
         pub_date_m = pub_date_pattern.search(item)
+        desc_m = desc_pattern.search(item)
         
         title = clean_cdata(title_m.group(1)) if title_m else "No Title"
         link = clean_cdata(link_m.group(1)) if link_m else ""
         pub_date = clean_cdata(pub_date_m.group(1)) if pub_date_m else ""
+        description = clean_cdata(desc_m.group(1)) if desc_m else ""
         
-        raw_articles.append((title, link, pub_date))
+        raw_articles.append((title, link, pub_date, description))
         
     if not raw_articles:
         # Try Atom entry format
@@ -258,17 +268,20 @@ def regex_parse_rss(xml_str):
         entries = entry_pattern.findall(xml_str)
         updated_pattern = re.compile(r"<(updated|published)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
         link_atom_pattern = re.compile(r'<link[^>]*href=["\'](.*?)["\']', re.DOTALL | re.IGNORECASE)
+        summary_pattern = re.compile(r"<(summary|content)>(.*?)</\1>", re.DOTALL | re.IGNORECASE)
         
         for entry in entries:
             title_m = title_pattern.search(entry)
             link_m = link_atom_pattern.search(entry)
             pub_date_m = updated_pattern.search(entry)
+            summary_m = summary_pattern.search(entry)
             
             title = clean_cdata(title_m.group(1)) if title_m else "No Title"
             link = clean_cdata(link_m.group(1)) if link_m else ""
             pub_date = clean_cdata(pub_date_m.group(2)) if pub_date_m else ""
+            description = clean_cdata(summary_m.group(2)) if summary_m else ""
             
-            raw_articles.append((title, link, pub_date))
+            raw_articles.append((title, link, pub_date, description))
             
     return raw_articles
 
@@ -310,12 +323,14 @@ def fetch_cyber_news(feed_url):
                 ns_title = "{http://purl.org/rss/1.0/}title"
                 ns_link = "{http://purl.org/rss/1.0/}link"
                 ns_date = "{http://purl.org/dc/elements/1.1/}date"
+                ns_desc = "{http://purl.org/rss/1.0/}description"
                 items = root.findall(ns_item) or root.findall(".//" + ns_item)
                 for item in items:
                     title = find_el_text(item, [ns_title, "title"])
                     link = find_el_text(item, [ns_link, "link"])
                     pub_date = find_el_text(item, [ns_date, "pubDate"])
-                    raw_articles.append((title, link, pub_date))
+                    description = find_el_text(item, [ns_desc, "description"])
+                    raw_articles.append((title, link, pub_date, description))
             else:
                 items = root.findall(".//item")
                 if items:
@@ -323,7 +338,8 @@ def fetch_cyber_news(feed_url):
                         title = find_el_text(item, ["title"])
                         link = find_el_text(item, ["link"])
                         pub_date = find_el_text(item, ["pubDate"])
-                        raw_articles.append((title, link, pub_date))
+                        description = find_el_text(item, ["description", "summary", "content"])
+                        raw_articles.append((title, link, pub_date, description))
                 else:
                     # Atom format
                     entries = root.findall(".//{http://www.w3.org/2005/Atom}entry") or root.findall(".//entry")
@@ -336,18 +352,31 @@ def fetch_cyber_news(feed_url):
                             "updated",
                             "published"
                         ])
-                        raw_articles.append((title, link, pub_date))
+                        description = find_el_text(entry, [
+                            "{http://www.w3.org/2005/Atom}summary",
+                            "{http://www.w3.org/2005/Atom}content",
+                            "summary",
+                            "content"
+                        ])
+                        raw_articles.append((title, link, pub_date, description))
         except ET.ParseError as pe:
             # 2. Fall back to regex parser if XML is malformed
             print(f"    [i] XML parsing error ({pe}). Falling back to regex parser...")
             raw_articles = regex_parse_rss(xml_str)
             
         articles = []
-        for title, link, pub_date in raw_articles:
+        for title, link, pub_date, description in raw_articles:
             # A. Check blacklist exclusion filter
             is_bad, matched_kw = is_blacklisted(title, link)
             if is_bad:
-                print(f"    [i] Skipped blacklisted article (matched '{matched_kw}'): {title.strip()}")
+                try:
+                    print(f"    [i] Skipped blacklisted article (matched '{matched_kw}'): {title.strip()}")
+                except UnicodeEncodeError:
+                    try:
+                        clean_title = title.strip().encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+                        print(f"    [i] Skipped blacklisted article (matched '{matched_kw}'): {clean_title}")
+                    except Exception:
+                        pass
                 continue
                 
             # B. Check 48-hour age filter
@@ -357,7 +386,8 @@ def fetch_cyber_news(feed_url):
                     "title": title.strip(),
                     "link": link.strip(),
                     "date": pub_date.strip(),
-                    "parsed_date": dt
+                    "parsed_date": dt,
+                    "description": description.strip() if description else ""
                 })
         
         # Sort articles so the most recent ones are first
@@ -368,8 +398,25 @@ def fetch_cyber_news(feed_url):
         print(f"[-] Error fetching/parsing news from {feed_url}: {e}", file=sys.stderr)
         return []
 
+def escape_html(text):
+    """Escapes special HTML characters to prevent breaking Telegram markup."""
+    if not text:
+        return ""
+    return html.escape(text)
+
+def clean_html_description(text):
+    """Unescapes HTML entities, strips HTML tags, and cleans white spaces."""
+    if not text:
+        return ""
+    text = html.unescape(text)
+    # Strip HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Normalize whitespaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 def send_digest_to_telegram(digest_categories):
-    """Formats and sends a consolidated news digest categorized by domain to Telegram."""
+    """Formats and sends a consolidated news digest categorized by domain to Telegram using HTML."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN)
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", TELEGRAM_CHAT_ID)
 
@@ -384,9 +431,6 @@ def send_digest_to_telegram(digest_categories):
         return
 
     print(f"[*] Posting consolidated IT, Cyber & AI News Digest to Telegram...")
-
-    message = f"📰 *DAILY IT, CYBER & AI WATCH*\n"
-    message += f"🕒 _Filtré : Dernières 48h (sans promotions/bruit)_\n\n"
 
     category_emojis = {
         "Cybersecurity": "🔒",
@@ -409,18 +453,40 @@ def send_digest_to_telegram(digest_categories):
         emoji = category_emojis.get(cat_name, "📢")
         title_fr = category_titles_fr.get(cat_name, cat_name.upper())
         
-        message += f"{emoji} *{title_fr}*\n"
-        for i, art in enumerate(articles[:5], 1):
-            clean_title = art['title'].replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace('`', '\\`')
-            source = art.get('source', '')
-            source_suffix = f" ({source})" if source else ""
+        # Build category header
+        message = f"{emoji} <b>VEILLE {title_fr}</b>\n"
+        message += f"🕒 <i>Dernières 48h (sans promotions/bruit)</i>\n\n"
+        
+        # Display top 10 articles
+        for i, art in enumerate(articles[:10], 1):
+            title = escape_html(art['title'])
+            source = escape_html(art.get('source', ''))
             
-            message += f"{i}. [{clean_title}]({art['link']}){source_suffix}\n"
-        message += "\n"
-
-    message += "🤖 _Envoyé via Security Watch Bot_"
-
-    send_telegram_raw_message(token, chat_id, message)
+            # Format date beautifully
+            date_str = ""
+            if art.get("date"):
+                raw_date = art["date"]
+                date_str = raw_date[:16] if len(raw_date) > 16 else raw_date
+            
+            date_info = f" ({date_str})" if date_str else ""
+            
+            message += f"{i}. <b>{title}</b>\n"
+            message += f"<i>{source}{date_info}</i>\n"
+            
+            if art.get("description"):
+                desc = clean_html_description(art["description"])
+                if desc:
+                    # Limit description to 150 characters
+                    if len(desc) > 150:
+                        desc = desc[:147] + "..."
+                    message += f"💡 {escape_html(desc)}\n"
+            
+            message += f"🔗 <a href=\"{art['link']}\">Lire l'article</a>\n\n"
+            
+        message += "🤖 <i>Envoyé via Security Watch Bot</i>"
+        
+        # Send message for this category
+        send_telegram_raw_message(token, chat_id, message, parse_mode="HTML")
 
 def audit_log(file_path, threshold, json_output=None, email_recipient=None, telegram_alert=False):
     """
