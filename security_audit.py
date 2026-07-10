@@ -53,6 +53,11 @@ FEEDS = {
         "ZDNet Actualités": "https://www.zdnet.fr/feeds/rss/actualites/",
         "Wired": "https://www.wired.com/feed/rss",
         "Ars Technica": "https://feeds.arstechnica.com/arstechnica/index"
+    },
+    "Regulatory Compliance": {
+        "ANSSI Actualités": "https://cyber.gouv.fr/actualites/rss/",
+        "LINC CNIL (RGPD)": "https://linc.cnil.fr/rss.xml",
+        "Global Security Mag (GRC)": "https://www.globalsecuritymag.fr/spip.php?page=backend"
     }
 }
 
@@ -217,6 +222,24 @@ def parse_feed_date(date_str):
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
+    except Exception:
+        pass
+        
+    # Try French date format (typical LINC CNIL: e.g. "Jeudi 9 juillet 2026 - 12:00")
+    try:
+        months_fr = {
+            "janvier": 1, "fevrier": 2, "février": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+            "juillet": 7, "aout": 8, "août": 8, "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12, "décembre": 12
+        }
+        m = re.search(r'(?:[a-zA-Zéû\s]+)?(?P<day>\d+)\s+(?P<month>[a-zA-Zéû]+)\s+(?P<year>\d{4})(?:\s*-\s*(?P<hour>\d{2}):(?P<minute>\d{2}))?', date_str.lower())
+        if m:
+            day = int(m.group("day"))
+            month_word = m.group("month")
+            month = months_fr.get(month_word, 1)
+            year = int(m.group("year"))
+            hour = int(m.group("hour")) if m.group("hour") else 12
+            minute = int(m.group("minute")) if m.group("minute") else 0
+            return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
     except Exception:
         pass
         
@@ -436,6 +459,7 @@ def send_digest_to_telegram(digest_categories):
         "Cybersecurity": "🔒",
         "Artificial Intelligence": "🤖",
         "General IT": "💻",
+        "Regulatory Compliance": "📜",
         "Custom Feed": "🔗"
     }
 
@@ -443,6 +467,7 @@ def send_digest_to_telegram(digest_categories):
         "Cybersecurity": "CYBERSÉCURITÉ",
         "Artificial Intelligence": "INTELLIGENCE ARTIFICIELLE",
         "General IT": "ACTUALITÉS IT & TECH",
+        "Regulatory Compliance": "CONFORMITÉ & RÉGLEMENTATION",
         "Custom Feed": "FLUX PERSONNALISÉ"
     }
 
