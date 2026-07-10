@@ -30,11 +30,23 @@ TELEGRAM_CHAT_ID = "-1004448062967"
 DEFAULT_LOG_FILE = "mock_auth.log"
 THRESHOLD = 5
 
-# Unique and strict RSS news feeds
+# Unique and strict RSS news feeds categorized by domain
 FEEDS = {
-    "CERT-FR Avis": "https://www.cert.ssi.gouv.fr/avis/feed/",
-    "The Hacker News": "https://feeds.feedburner.com/TheHackerNews",
-    "BleepingComputer": "https://www.bleepingcomputer.com/feed/"
+    "Cybersecurity": {
+        "CERT-FR Avis": "https://www.cert.ssi.gouv.fr/avis/feed/",
+        "CERT-FR Alertes": "https://www.cert.ssi.gouv.fr/alerte/feed/",
+        "The Hacker News": "https://feeds.feedburner.com/TheHackersNews",
+        "BleepingComputer": "https://www.bleepingcomputer.com/feed/"
+    },
+    "Artificial Intelligence": {
+        "OpenAI News": "https://openai.com/news/rss.xml",
+        "TechCrunch AI": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "Actu IA": "https://www.actuia.com/feed/"
+    },
+    "General IT": {
+        "Le Monde Informatique": "https://www.lemondeinformatique.fr/flux-rss/thematique/toutes-les-actualites/rss.xml",
+        "ZDNet Actualités": "https://www.zdnet.fr/feeds/rss/actualites/"
+    }
 }
 
 # Blacklist keywords to filter and automatically exclude promotional or off-topic posts
@@ -262,7 +274,7 @@ def regex_parse_rss(xml_str):
 
 def fetch_cyber_news(feed_url):
     """Fetches and parses an RSS feed using urllib, filtering for articles from the last 48 hours and ignoring blacklisted keywords."""
-    print(f"[*] Fetching cybersecurity news from: {feed_url}")
+    print(f"[*] Fetching news from: {feed_url}")
     
     req = urllib.request.Request(
         feed_url,
@@ -281,24 +293,50 @@ def fetch_cyber_news(feed_url):
         try:
             # 1. Attempt standard XML parsing
             root = ET.fromstring(xml_data)
-            items = root.findall(".//item")
-            if items:
+            
+            def find_el_text(element, tag_names, attr=None):
+                for tname in tag_names:
+                    el = element.find(tname)
+                    if el is not None:
+                        if attr:
+                            return el.attrib.get(attr, "").strip()
+                        return el.text.strip() if el.text else ""
+                return ""
+            
+            # Detect root namespaces or structure
+            if "RDF" in root.tag:
+                # RSS 1.0 (RDF)
+                ns_item = "{http://purl.org/rss/1.0/}item"
+                ns_title = "{http://purl.org/rss/1.0/}title"
+                ns_link = "{http://purl.org/rss/1.0/}link"
+                ns_date = "{http://purl.org/dc/elements/1.1/}date"
+                items = root.findall(ns_item) or root.findall(".//" + ns_item)
                 for item in items:
-                    title = item.find("title").text if item.find("title") is not None else "No Title"
-                    link = item.find("link").text if item.find("link") is not None else ""
-                    pub_date = item.find("pubDate").text if item.find("pubDate") is not None else ""
+                    title = find_el_text(item, [ns_title, "title"])
+                    link = find_el_text(item, [ns_link, "link"])
+                    pub_date = find_el_text(item, [ns_date, "pubDate"])
                     raw_articles.append((title, link, pub_date))
             else:
-                entries = root.findall(".//{http://www.w3.org/2005/Atom}entry") or root.findall(".//entry")
-                for entry in entries:
-                    title = entry.find("{http://www.w3.org/2005/Atom}title").text if entry.find("{http://www.w3.org/2005/Atom}title") is not None else (entry.find("title").text if entry.find("title") is not None else "No Title")
-                    link_el = entry.find("{http://www.w3.org/2005/Atom}link") or entry.find("link")
-                    link = ""
-                    if link_el is not None:
-                        link = link_el.attrib.get("href", link_el.text or "")
-                    pub_date_el = entry.find("{http://www.w3.org/2005/Atom}updated") or entry.find("{http://www.w3.org/2005/Atom}published") or entry.find("updated") or entry.find("published")
-                    pub_date = pub_date_el.text if pub_date_el is not None else ""
-                    raw_articles.append((title, link, pub_date))
+                items = root.findall(".//item")
+                if items:
+                    for item in items:
+                        title = find_el_text(item, ["title"])
+                        link = find_el_text(item, ["link"])
+                        pub_date = find_el_text(item, ["pubDate"])
+                        raw_articles.append((title, link, pub_date))
+                else:
+                    # Atom format
+                    entries = root.findall(".//{http://www.w3.org/2005/Atom}entry") or root.findall(".//entry")
+                    for entry in entries:
+                        title = find_el_text(entry, ["{http://www.w3.org/2005/Atom}title", "title"])
+                        link = find_el_text(entry, ["{http://www.w3.org/2005/Atom}link", "link"], attr="href")
+                        pub_date = find_el_text(entry, [
+                            "{http://www.w3.org/2005/Atom}updated", 
+                            "{http://www.w3.org/2005/Atom}published",
+                            "updated",
+                            "published"
+                        ])
+                        raw_articles.append((title, link, pub_date))
         except ET.ParseError as pe:
             # 2. Fall back to regex parser if XML is malformed
             print(f"    [i] XML parsing error ({pe}). Falling back to regex parser...")
@@ -324,39 +362,64 @@ def fetch_cyber_news(feed_url):
         
         # Sort articles so the most recent ones are first
         articles.sort(key=lambda x: x["parsed_date"], reverse=True)
-        return articles[:5]
+        return articles
         
     except Exception as e:
         print(f"[-] Error fetching/parsing news from {feed_url}: {e}", file=sys.stderr)
         return []
 
-def send_news_to_telegram(articles, source_name):
-    """Formats and sends a list of cyber news articles to Telegram."""
+def send_digest_to_telegram(digest_categories):
+    """Formats and sends a consolidated news digest categorized by domain to Telegram."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN)
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", TELEGRAM_CHAT_ID)
 
     if not token or not chat_id:
-        print("[-] Error: Telegram news alert requested, but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.", file=sys.stderr)
+        print("[-] Error: Telegram digest alert requested, but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.", file=sys.stderr)
         return
 
-    if not articles:
-        print(f"[i] No relevant articles published in the last 48 hours for source: {source_name}. Skipped.")
+    # Check if there are any articles at all
+    total_articles = sum(len(articles) for articles in digest_categories.values())
+    if total_articles == 0:
+        print("[i] No relevant articles published in the last 48 hours for any category. Digest skipped.")
         return
 
-    print(f"[*] Posting latest cyber news from {source_name} to Telegram...")
+    print(f"[*] Posting consolidated IT, Cyber & AI News Digest to Telegram...")
 
-    message = f"📰 *Dernières Actualités Cyber ({source_name})*\n"
-    message += f"🕒 _Filtré : Dernières 48 heures (sans bruit / promotions)_\n\n"
-    for i, art in enumerate(articles, 1):
-        clean_title = art['title'].replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace('`', '\\`')
-        message += f"{i}. [{clean_title}]({art['link']})\n"
-        if art.get("date"):
-            date_str = art["date"][:16] if len(art["date"]) > 16 else art["date"]
-            message += f"   📅 _{date_str}_\n"
-        message += "\n"
+    message = f"📰 *DAILY IT, CYBER & AI WATCH*\n"
+    message += f"🕒 _Filtré : Dernières 48h (sans promotions/bruit)_\n\n"
+
+    category_emojis = {
+        "Cybersecurity": "🔒",
+        "Artificial Intelligence": "🤖",
+        "General IT": "💻",
+        "Custom Feed": "🔗"
+    }
+
+    category_titles_fr = {
+        "Cybersecurity": "CYBERSÉCURITÉ",
+        "Artificial Intelligence": "INTELLIGENCE ARTIFICIELLE",
+        "General IT": "ACTUALITÉS IT & TECH",
+        "Custom Feed": "FLUX PERSONNALISÉ"
+    }
+
+    for cat_name, articles in digest_categories.items():
+        if not articles:
+            continue
         
-    message += "🤖 _Envoyé via Security Audit Bot_"
-    
+        emoji = category_emojis.get(cat_name, "📢")
+        title_fr = category_titles_fr.get(cat_name, cat_name.upper())
+        
+        message += f"{emoji} *{title_fr}*\n"
+        for i, art in enumerate(articles[:5], 1):
+            clean_title = art['title'].replace('*', '\\*').replace('_', '\\_').replace('[', '\\[').replace('`', '\\`')
+            source = art.get('source', '')
+            source_suffix = f" ({source})" if source else ""
+            
+            message += f"{i}. [{clean_title}]({art['link']}){source_suffix}\n"
+        message += "\n"
+
+    message += "🤖 _Envoyé via Security Watch Bot_"
+
     send_telegram_raw_message(token, chat_id, message)
 
 def audit_log(file_path, threshold, json_output=None, email_recipient=None, telegram_alert=False):
@@ -447,14 +510,35 @@ if __name__ == "__main__":
     
     # Execute RSS news fetching if requested
     if args.fetch_news:
+        digest_categories = {}
         if args.feed_url:
-            feeds = {"Custom Feed": args.feed_url}
+            # Single custom feed url
+            articles = fetch_cyber_news(args.feed_url)
+            for art in articles:
+                art['source'] = "Custom"
+            digest_categories["Custom Feed"] = articles
         else:
-            feeds = FEEDS
-            
-        for name, url in feeds.items():
-            articles = fetch_cyber_news(url)
-            send_news_to_telegram(articles, name)
+            # Categorized feeds
+            for category, sources in FEEDS.items():
+                category_articles = []
+                seen_urls = set()
+                
+                for source_name, url in sources.items():
+                    articles = fetch_cyber_news(url)
+                    for art in articles:
+                        # Normalize URL to avoid duplicates
+                        norm_url = art['link'].split('?')[0].split('#')[0].rstrip('/')
+                        if norm_url not in seen_urls:
+                            seen_urls.add(norm_url)
+                            art['source'] = source_name
+                            category_articles.append(art)
+                
+                # Sort consolidated category articles by date
+                category_articles.sort(key=lambda x: x["parsed_date"], reverse=True)
+                digest_categories[category] = category_articles
+        
+        # Send consolidated digest
+        send_digest_to_telegram(digest_categories)
     else:
         # Otherwise run log audit
         audit_log(args.log_file, args.threshold, args.json, args.email, args.telegram)
