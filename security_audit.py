@@ -58,6 +58,16 @@ FEEDS = {
         "ANSSI Actualités": "https://cyber.gouv.fr/actualites/rss/",
         "LINC CNIL (RGPD)": "https://linc.cnil.fr/rss.xml",
         "Global Security Mag (GRC)": "https://www.globalsecuritymag.fr/spip.php?page=backend"
+    },
+    "Offensive Security": {
+        "Hack The Box": "https://www.hackthebox.com/rss/blog/all",
+        "PortSwigger Blog": "https://portswigger.net/blog/rss"
+    },
+    "Threat Intel & SOC": {
+        "CERT-FR Menaces": "https://www.cert.ssi.gouv.fr/cti/feed/",
+        "SANS ISC": "https://isc.sans.edu/rssfeed.xml",
+        "ESET WeLiveSecurity": "https://www.welivesecurity.com/feed/",
+        "Microsoft Security": "https://www.microsoft.com/en-us/security/blog/feed/"
     }
 }
 
@@ -460,6 +470,8 @@ def send_digest_to_telegram(digest_categories):
         "Artificial Intelligence": "🤖",
         "General IT": "💻",
         "Regulatory Compliance": "📜",
+        "Offensive Security": "🎯",
+        "Threat Intel & SOC": "🛡️",
         "Custom Feed": "🔗"
     }
 
@@ -468,6 +480,8 @@ def send_digest_to_telegram(digest_categories):
         "Artificial Intelligence": "INTELLIGENCE ARTIFICIELLE",
         "General IT": "ACTUALITÉS IT & TECH",
         "Regulatory Compliance": "CONFORMITÉ & RÉGLEMENTATION",
+        "Offensive Security": "SÉCURITÉ OFFENSIVE & PENTEST",
+        "Threat Intel & SOC": "THREAT INTEL & SOC",
         "Custom Feed": "FLUX PERSONNALISÉ"
     }
 
