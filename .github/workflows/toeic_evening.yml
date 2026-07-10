@@ -7,6 +7,8 @@ on:
   schedule:
     # Runs at 18:00 UTC (08:00 PM Paris Summer Time / 07:00 PM Winter Time)
     - cron: '0 18 * * *'
+    # Test at 21:05 UTC (23:05 Paris Time)
+    - cron: '5 21 * * *'
   workflow_dispatch:
 
 jobs:
