@@ -1,0 +1,25 @@
+name: TOEIC Morning Challenge
+
+on:
+  schedule:
+    # Runs at 06:00 UTC (08:00 AM Paris Summer Time / 07:00 AM Winter Time)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run TOEIC Morning Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python english_toeic_bot.py --morning

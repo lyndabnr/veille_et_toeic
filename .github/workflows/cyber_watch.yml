@@ -1,0 +1,25 @@
+name: Cybersecurity News Watch
+
+on:
+  schedule:
+    # Runs at 07:00 UTC (09:00 AM Paris Summer Time / 08:00 AM Winter Time)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run Cyber Watch Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python security_audit.py --fetch-news
