@@ -1,6 +1,9 @@
 name: Cybersecurity News Watch
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Runs at 07:00 UTC (09:00 AM Paris Summer Time / 08:00 AM Winter Time)
     - cron: '0 7 * * *'
