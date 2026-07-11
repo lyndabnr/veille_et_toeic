@@ -2,10 +2,10 @@ name: Cybersecurity News Watch
 
 on:
   schedule:
-    # Runs at 07:00 UTC (09:00 AM Paris Summer Time / 08:00 AM Winter Time)
-    - cron: '0 7 * * *'
-    # Runs daily at 21:05 UTC (23:05 PM Paris Time)
-    - cron: '5 21 * * *'
+    # Runs daily around 09:00 AM Paris Time (scheduled at 06:52 UTC to avoid peak-hour queue delay)
+    - cron: '52 6 * * *'
+    # Runs daily around 11:05 PM Paris Time (scheduled at 21:02 UTC to avoid peak-hour queue delay)
+    - cron: '2 21 * * *'
   workflow_dispatch:
 
 jobs:

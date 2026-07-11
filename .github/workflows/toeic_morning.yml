@@ -2,10 +2,8 @@ name: TOEIC Morning Challenge
 
 on:
   schedule:
-    # Runs at 06:00 UTC (08:00 AM Paris Summer Time / 07:00 AM Winter Time)
-    - cron: '0 6 * * *'
-    # Runs daily at 21:05 UTC (23:05 PM Paris Time)
-    - cron: '5 21 * * *'
+    # Runs daily around 08:00 AM Paris Time (scheduled at 05:52 UTC to avoid peak-hour queue delay)
+    - cron: '52 5 * * *'
   workflow_dispatch:
 
 jobs:
