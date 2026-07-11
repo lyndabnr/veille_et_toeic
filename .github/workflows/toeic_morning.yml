@@ -1,6 +1,9 @@
 name: TOEIC Morning Challenge
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Runs at 06:00 UTC (08:00 AM Paris Summer Time / 07:00 AM Winter Time)
     - cron: '0 6 * * *'
