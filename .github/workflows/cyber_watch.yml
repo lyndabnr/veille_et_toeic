@@ -22,6 +22,8 @@ jobs:
 
       - name: Run Cyber Watch Bot
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN_WATCH || secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID_WATCH || secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN_WATCH: ${{ secrets.TELEGRAM_BOT_TOKEN_WATCH }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID_WATCH: ${{ secrets.TELEGRAM_CHAT_ID_WATCH }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python security_audit.py --fetch-news

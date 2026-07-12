@@ -48,20 +48,31 @@ FEEDS = {
         "The Hacker News": {"url": "https://feeds.feedburner.com/TheHackersNews", "lang": "en"},
         "BleepingComputer": {"url": "https://www.bleepingcomputer.com/feed/", "lang": "en"},
         "Krebs on Security": {"url": "https://krebsonsecurity.com/feed/", "lang": "en"},
-        "Dark Reading": {"url": "https://www.darkreading.com/rss.xml", "lang": "en"}
+        "Dark Reading": {"url": "https://www.darkreading.com/rss.xml", "lang": "en"},
+        "Numerama Cyberguerre": {"url": "https://www.numerama.com/cyberguerre/feed/", "lang": "fr"},
+        "CERT-EU Advisories": {"url": "https://cert.europa.eu/publications/security-advisories/rss", "lang": "en"},
+        "LMI Sécurité": {"url": "https://www.lemondeinformatique.fr/flux-rss/thematique/securite/rss.xml", "lang": "fr"},
+        "ZATAZ": {"url": "https://www.zataz.com/feed/", "lang": "fr"}
     },
     "Artificial Intelligence": {
         "OpenAI News": {"url": "https://openai.com/news/rss.xml", "lang": "en"},
         "TechCrunch AI": {"url": "https://techcrunch.com/category/artificial-intelligence/feed/", "lang": "en"},
         "Actu IA": {"url": "https://www.actuia.com/feed/", "lang": "fr"},
         "Hugging Face": {"url": "https://huggingface.co/blog/feed.xml", "lang": "en"},
-        "Google Research": {"url": "https://research.google/blog/rss/", "lang": "en"}
+        "Google Research": {"url": "https://research.google/blog/rss/", "lang": "en"},
+        "VentureBeat AI": {"url": "https://venturebeat.com/category/ai/feed/", "lang": "en"},
+        "MIT News AI": {"url": "https://news.mit.edu/rss/topic/artificial-intelligence2", "lang": "en"},
+        "Numerama IA": {"url": "https://www.numerama.com/sciences/intelligence-artificielle/feed/", "lang": "fr"}
     },
     "General IT": {
         "Le Monde Informatique": {"url": "https://www.lemondeinformatique.fr/flux-rss/thematique/toutes-les-actualites/rss.xml", "lang": "fr"},
         "ZDNet Actualités": {"url": "https://www.zdnet.fr/feeds/rss/actualites/", "lang": "fr"},
         "Wired": {"url": "https://www.wired.com/feed/rss", "lang": "en"},
-        "Ars Technica": {"url": "https://feeds.arstechnica.com/arstechnica/index", "lang": "en"}
+        "Ars Technica": {"url": "https://feeds.arstechnica.com/arstechnica/index", "lang": "en"},
+        "Hacker News": {"url": "https://hnrss.org/frontpage?points=100", "lang": "en"},
+        "Clubic Tech": {"url": "https://www.clubic.com/feed/news.rss", "lang": "fr"},
+        "Numerama Tech": {"url": "https://www.numerama.com/tech/feed/", "lang": "fr"},
+        "TechCrunch": {"url": "https://techcrunch.com/feed/", "lang": "en"}
     },
     "Regulatory Compliance": {
         "ANSSI Actualités": {"url": "https://cyber.gouv.fr/actualites/rss/", "lang": "fr"},
@@ -70,7 +81,9 @@ FEEDS = {
     },
     "Offensive Security": {
         "Hack The Box": {"url": "https://www.hackthebox.com/rss/blog/all", "lang": "en"},
-        "PortSwigger Blog": {"url": "https://portswigger.net/blog/rss", "lang": "en"}
+        "PortSwigger Blog": {"url": "https://portswigger.net/blog/rss", "lang": "en"},
+        "Packet Storm News": {"url": "https://rss.packetstormsecurity.com/news/", "lang": "en"},
+        "Full Disclosure": {"url": "https://seclists.org/rss/fulldisclosure.rss", "lang": "en"}
     },
     "Threat Intel & SOC": {
         "CERT-FR Menaces": {"url": "https://www.cert.ssi.gouv.fr/cti/feed/", "lang": "fr"},
@@ -179,7 +192,7 @@ def send_telegram_alert(suspicious_ips, log_file, threshold):
 
     if not token or not chat_id:
         print("[-] Error: Telegram alert requested, but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.", file=sys.stderr)
-        return
+        sys.exit(1)
 
     print(f"[*] Preparing to send Telegram alert to Chat ID: {chat_id}...")
 
@@ -469,30 +482,48 @@ def clean_html_description(text):
     return text
 
 def translate_to_french(text):
-    """Translates a text from English to French using MyMemory free API."""
+    """Translates a text from English to French using Google Translate free web API, with a fallback to MyMemory."""
     if not text:
         return ""
     if not any(c.isalpha() for c in text):
         return text
-        
-    url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode({
-        "q": text,
-        "langpair": "en|fr"
-    })
-    req = urllib.request.Request(
-        url,
-        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    )
+
+    # 1. Try Google Translate Free Web API (highly reliable, virtually unlimited for digests)
     try:
+        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=fr&dt=t&q=" + urllib.parse.quote(text)
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res_data = response.read().decode('utf-8')
+            res_json = json.loads(res_data)
+            translated = "".join(chunk[0] for chunk in res_json[0] if chunk and chunk[0])
+            if translated:
+                return translated
+    except Exception:
+        pass
+
+    # 2. Fallback to MyMemory API
+    try:
+        url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode({
+            "q": text,
+            "langpair": "en|fr"
+        })
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
         with urllib.request.urlopen(req, timeout=5) as response:
             res_data = response.read().decode('utf-8')
             res_json = json.loads(res_data)
             translated = res_json.get("responseData", {}).get("translatedText", text)
-            if "mymemory" in translated.lower() or "limit" in translated.lower() or "quota" in translated.lower():
-                return text
-            return translated
+            if "mymemory" not in translated.lower() and "limit" not in translated.lower() and "quota" not in translated.lower():
+                return translated
     except Exception:
-        return text
+        pass
+
+    return text
 
 def send_digest_to_telegram(digest_categories):
     """Formats and sends a consolidated news digest categorized by domain to Telegram using HTML."""
@@ -501,7 +532,7 @@ def send_digest_to_telegram(digest_categories):
 
     if not token or not chat_id:
         print("[-] Error: Telegram digest alert requested, but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.", file=sys.stderr)
-        return
+        sys.exit(1)
 
     # Check if there are any articles at all
     total_articles = sum(len(articles) for articles in digest_categories.values())
@@ -687,6 +718,13 @@ if __name__ == "__main__":
     
     # Execute RSS news fetching if requested
     if args.fetch_news:
+        # Check Telegram configuration early to avoid fetching news if credentials are missing
+        token = os.environ.get("TELEGRAM_BOT_TOKEN_WATCH", os.environ.get("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN))
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID_WATCH", os.environ.get("TELEGRAM_CHAT_ID", TELEGRAM_CHAT_ID))
+        if not token or not chat_id:
+            print("[-] Error: Telegram digest alert requested, but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured.", file=sys.stderr)
+            sys.exit(1)
+
         digest_categories = {}
         if args.feed_url:
             # Single custom feed url
