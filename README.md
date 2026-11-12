@@ -1,118 +1,64 @@
-# Veille Technologique & Préparation au TOEIC 🤖💼
+# Veille cybersécurité vers Telegram
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TOEIC Morning](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/toeic_morning.yml/badge.svg)](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/toeic_morning.yml)
-[![TOEIC Evening](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/toeic_evening.yml/badge.svg)](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/toeic_evening.yml)
-[![Cybersecurity News Watch](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/cyber_watch.yml/badge.svg)](https://github.com/lyndabnr/veille_et_toeic/actions/workflows/cyber_watch.yml)
+Un bot qui surveille les sources de référence en cybersécurité et envoie les nouveautés sur un canal Telegram, quasiment en temps réel. Il tourne sur GitHub Actions, sans serveur ni dépendance externe (Python standard uniquement).
 
-Une suite d'outils automatisés conçus pour la veille technologique (Informatique, IA, Cybersécurité et Réglementation) et l'entraînement quotidien au test d'anglais TOEIC. Le tout est orchestré par GitHub Actions et délivré directement sur vos canaux Telegram sous forme de digests et de questions enrichies.
+## Fonctionnement
 
----
+Le workflow s'exécute toutes les 20 minutes environ. À chaque passage, `cyber_watch.py` :
 
-## 🌟 Fonctionnalités Principales
+1. interroge une trentaine de flux RSS/Atom et le catalogue CISA KEV ;
+2. écarte ce qui a déjà été envoyé (dédoublonnage par URL et par titre) ;
+3. envoie immédiatement les **alertes** ;
+4. envoie les autres nouveautés regroupées par catégorie ;
+5. signale une source injoignable depuis plus de 12 heures.
 
-### 1. 🎓 Préparation Quotidienne au TOEIC (`english_toeic_bot.py`)
-Ce bot envoie des exercices de préparation au TOEIC en deux sessions quotidiennes :
-* ☀️ **Session du Matin (Part 5 - Incomplete Sentences) :** Questions à choix multiples portant sur la grammaire et le vocabulaire.
-* 🌙 **Session du Soir (Part 7 - Reading Comprehension) :** Textes courts de compréhension écrite accompagnés de questions.
-* 💡 **Correction masquée :** Les réponses et explications détaillées sont envoyées sous forme de **spoiler Telegram** (`<tg-spoiler>`) pour encourager la réflexion avant de révéler la solution.
+Les articles en anglais sont traduits en français (titre, et résumé pour les alertes).
 
-### 2. 📰 Veille Technologique Complète (`security_audit.py`)
-Un agrégateur et traducteur automatique de flux d'actualités structuré en **6 catégories professionnelles** :
-* 🔒 **Cybersécurité :** CERT-FR (Avis/Alertes), The Hacker News, BleepingComputer, Krebs on Security, Dark Reading.
-* 🤖 **Intelligence Artificielle :** OpenAI News, TechCrunch AI, Actu IA, Hugging Face, Google Research.
-* 💻 **Actualités IT & Tech :** Le Monde Informatique, ZDNet Actualités, Wired, Ars Technica.
-* 📜 **Conformité & Réglementation :** ANSSI Actualités, LINC CNIL (RGPD), Global Security Mag (GRC).
-* 🎯 **Sécurité Offensive & Pentest :** Hack The Box Blog, PortSwigger Web Security.
-* 🛡️ **Threat Intel & SOC :** CERT-FR Menaces (CTI), SANS Internet Storm Center, ESET WeLiveSecurity, Microsoft Security.
+### Ce qui déclenche une alerte immédiate
 
-> [!TIP]
-> **Traduction & Dédoublonnage :** Les actualités issues de sources anglophones sont automatiquement traduites en français à la volée. Les doublons sont exclus et les actualités promotionnelles sont filtrées à l'aide d'une liste de mots-clés.
+- toute nouvelle alerte du CERT-FR ;
+- toute nouvelle entrée du catalogue CISA KEV (vulnérabilité dont l'exploitation active est confirmée), avec l'échéance de correction et la mention d'un usage par des ransomwares le cas échéant ;
+- les articles qui signalent un zero-day, une exploitation active, un correctif d'urgence, une faille critique ou une attaque sur la chaîne d'approvisionnement.
 
-### 3. 🚨 Audit de Sécurité des Logs (`security_audit.py`)
-Analyse des fichiers de journaux d'authentification (ex: `mock_auth.log`) pour détecter les attaques par force brute (adresses IP dépassant un seuil de tentatives de connexions échouées) et envoie des rapports d'alertes par e-mail ou Telegram.
+### Sources
 
----
+| Catégorie | Sources |
+|---|---|
+| Alertes et avis officiels | CERT-FR (alertes, avis), CISA Advisories, NCSC UK |
+| Cybersécurité | The Hacker News, BleepingComputer, SecurityWeek, The Record, Krebs on Security, Dark Reading, Help Net Security, Schneier, ZATAZ, LMI, Numerama, Global Security Mag |
+| Menaces et CTI | CERT-FR CTI, SANS ISC, Unit 42, Cisco Talos, ESET, Microsoft Security, Sekoia, Check Point Research, Securelist, Malwarebytes, Rapid7 |
+| Sécurité offensive et recherche | PortSwigger Research, Google Project Zero |
+| Réglementation et conformité | ANSSI, CERT-FR actualités, CNIL, LINC CNIL |
 
-## 📂 Structure du Projet
+La liste est dans `SOURCES` en haut de `cyber_watch.py`. Ajouter une source revient à ajouter une ligne.
 
-```text
-├── .github/workflows/
-│   ├── cyber_watch.yml      # Workflow de la veille (Matin 09:00 / Soir 23:05)
-│   ├── toeic_morning.yml    # Workflow TOEIC Matin (08:00)
-│   └── toeic_evening.yml    # Workflow TOEIC Soir (20:00)
-├── english_toeic_bot.py      # Script du bot TOEIC (exercices et corrections)
-├── security_audit.py        # Script de veille d'actualités et d'audit de logs
-├── mock_auth.log            # Fichier de log de démonstration pour l'audit
-├── .env.example             # Modèle de variables d'environnement locales
-└── README.md                # Présentation du dépôt
-```
+## Mise en place
 
----
+1. Créer un bot avec [@BotFather](https://t.me/BotFather) et récupérer son token.
+2. Ajouter le bot comme administrateur du canal et récupérer l'identifiant du canal.
+3. Dans les paramètres du dépôt, section Secrets and variables > Actions, créer :
+   - `TELEGRAM_BOT_TOKEN_WATCH`
+   - `TELEGRAM_CHAT_ID_WATCH`
+4. Activer le workflow dans l'onglet Actions. Le premier passage envoie un message de confirmation et les alertes des dernières 24 heures, puis amorce l'historique sans inonder le canal.
 
-## 🛠️ Configuration & Variables de Sécurité
+## Exécution locale
 
-Les scripts utilisent uniquement la bibliothèque standard de Python (aucune dépendance externe requise) pour garantir une exécution rapide et sans maintenance.
-
-### 1. Configuration Locale (Sécurisée)
-
-Pour exécuter les scripts sur votre propre machine sans risquer de divulguer vos jetons Telegram sur GitHub :
-
-1. Créez un fichier nommé `secrets_config.py` à la racine du projet (ce fichier est déjà présent dans `.gitignore` et ne sera jamais commité).
-2. Ajoutez-y vos jetons de la manière suivante :
-   ```python
-   # Configuration Telegram Confidentielle
-   TELEGRAM_BOT_TOKEN_TOEIC = "votre_token_bot_toeic"
-   TELEGRAM_CHAT_ID_TOEIC = "votre_id_canal_toeic"
-
-   TELEGRAM_BOT_TOKEN_WATCH = "votre_token_bot_veille"
-   TELEGRAM_CHAT_ID_WATCH = "votre_id_canal_veille"
-   ```
-
-> [!IMPORTANT]
-> Pour configurer d'autres options comme les alertes SMTP, vous pouvez copier le fichier `.env.example` en un fichier `.env` local. Le fichier `.env` est également ignoré par Git.
-
-### 2. Configuration sur GitHub (GitHub Actions)
-
-Pour automatiser les envois via GitHub Actions, configurez les secrets dans votre dépôt GitHub :
-1. Allez dans **Settings** > **Secrets and variables** > **Actions** > **New repository secret**.
-2. Créez les secrets suivants :
-   * `TELEGRAM_BOT_TOKEN_TOEIC` : Le jeton API du bot Telegram TOEIC.
-   * `TELEGRAM_BOT_TOKEN_WATCH` : Le jeton API du bot Telegram de Veille.
-   * `TELEGRAM_CHAT_ID_TOEIC` : L'identifiant de votre canal/groupe TOEIC.
-   * `TELEGRAM_CHAT_ID_WATCH` : L'identifiant de votre canal/groupe de Veille.
-
----
-
-## 🚀 Utilisation en Local
-
-### 1. Lancer la Veille Technologique
 ```bash
-python security_audit.py --fetch-news
+cp .env.example .env            # renseigner le token et l'identifiant du canal
+python cyber_watch.py --dry-run # affiche les messages sans rien envoyer
+python cyber_watch.py           # envoi réel, état dans state/seen.json
 ```
 
-### 2. Lancer les Questions TOEIC
-* **Défi du Matin :**
-  ```bash
-  python english_toeic_bot.py --morning
-  ```
-* **Défi du Soir :**
-  ```bash
-  python english_toeic_bot.py --evening
-  ```
+Pour tester le dédoublonnage sans toucher à l'état réel : `python cyber_watch.py --dry-run --state /tmp/seen.json`.
 
-### 3. Exécuter un Audit de Logs
-```bash
-python security_audit.py mock_auth.log --threshold 5 --telegram
-```
+## Persistance de l'état
 
----
+L'historique des éléments déjà envoyés est stocké dans `seen.json` sur la branche `state` du dépôt (un seul commit, réécrit à chaque changement). Cela garde la branche principale propre et maintient une activité régulière sur le dépôt, ce qui empêche GitHub de désactiver les workflows planifiés après 60 jours d'inactivité.
 
-## 📅 Planification GitHub Actions
+## Réglages
 
-Les tâches s'exécutent automatiquement selon les planifications quotidiennes suivantes (Heure de Paris) :
-* 📅 **08h00 :** Envoi du Défi TOEIC Matin (`toeic_morning.yml`)
-* 📅 **09h00 :** Premier envoi de la Veille Techno (`cyber_watch.yml`)
-* 📅 **20h00 :** Envoi du Défi TOEIC Soir (`toeic_evening.yml`)
-* 📅 **23h05 :** Deuxième envoi de la Veille Techno (`cyber_watch.yml`)
+Les constantes en haut de `cyber_watch.py` permettent d'ajuster le comportement : âge maximal des articles, nombre maximal d'alertes et d'éléments par passage, mots-clés des signaux critiques (`STRONG_RE`, `TITLE_RE`) et filtre promotionnel (`PROMO_RE`).
+
+## Audit de logs
+
+`security_audit.py` est un utilitaire indépendant qui détecte les attaques par force brute dans un fichier de journaux d'authentification (exemple : `mock_auth.log`). La veille d'actualités est désormais assurée par `cyber_watch.py`.
